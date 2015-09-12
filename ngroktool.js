@@ -1,4 +1,4 @@
-﻿var ngroksupport = require('./lib/ngroksupport')
+var ngroksupport = require('./lib/ngroksupport')
 var debuglog = ngroksupport.debuglog('ngroktool');
 var ngroklocal = require('./lib/ngroklocal');
 var ngrokauth = require('./lib/ngrokauth');
@@ -40,6 +40,7 @@ function getParser() {
     help: 'Password',
     nargs: '?'
   });
+  var swParser = subparsers.addParser('switch', {addHelp:true});
   ['tcp','http','https'].forEach(function(proto) {
     var subParser = subparsers.addParser(proto, {addHelp:true});
     subParser.addArgument(['port'], {
@@ -49,7 +50,14 @@ function getParser() {
       nargs: '?'
     });
   });
-  var swParser = subparsers.addParser('switch', {addHelp:true});
+  var dumpParser = subparsers.addParser('dump', {addHelp:true});
+  dumpParser.addArgument(['-r', '--raw'], {
+    action: 'storeConst',
+    dest: 'dumptype',
+    constant: 'raw',
+    defaultValue: 'tunnels',
+    help: 'Dump all info'
+  });
   return parser;
 }
 
@@ -61,6 +69,19 @@ function main() {
   if(args.cmd==='auth') {
     auth = ngrokcfg.setauth({name:args.auth, user:args.user, password:args.password});
     debuglog('setauth =', auth);
+  } else if(args.cmd==='dump') {
+    console.log('login');
+    login(args.auth);
+    if(args.dumptype == 'raw') {
+      console.log('getraw');
+      getraw(dumpCB);
+    } else {
+      console.log('gettunnels');
+      gettunnels(dumpCB);
+    }
+    function dumpCB(data) {
+      console.log(JSON.stringify(data, null, 2));
+    }
   } else if((args.cmd==='tcp')||(args.cmd==='http')||(args.cmd==='https')) {
     login(args.auth);
     var filters = {proto:args.cmd};
