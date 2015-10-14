@@ -50,6 +50,7 @@ function getParser() {
       nargs: '?'
     });
   });
+  var listParser = subparsers.addParser('list', {addHelp:true});
   var dumpParser = subparsers.addParser('dump', {addHelp:true});
   dumpParser.addArgument(['-r', '--raw'], {
     action: 'storeConst',
@@ -67,16 +68,35 @@ function main() {
   debuglog('args =', args);
 
   if(args.cmd==='auth') {
-    auth = ngrokcfg.setauth({name:args.auth, user:args.user, password:args.password});
-    debuglog('setauth =', auth);
+    console.log(args);
+    ngrokcfg.setauth({name:args.auth, login:args.user, password:args.password, type:args.authtype}, function(auth, cb) {
+      ngrokauth.getraw(auth, function(data) {
+        console.log('check-getraw =', data);
+        auth.authtoken = data.tunnel_token;
+        cb(function(auth) {
+          login(auth);
+          console.log('setauth =', auth);
+        });
+      });
+    });
+  } else if(args.cmd==='switch') {
+    login(args.auth);
+    getraw(function(data) {
+      console.log('set authtoken in ngrok.yml to '+data.tunnel_token);
+      ngrokcfg.settoken(data.tunnel_token);
+    });
+  } else if(args.cmd==='list') {
+    login(args.auth);
+    gettunnels(function(tunnels) {
+      tunnels.forEach(function(tun) {
+        console.log(tun.proto+'\t'+tun.private_host+(tun.private_port?':'+tun.private_port:'')+'\t'+decodeURIComponent(tun.uri?tun.uri.replace(/^\/api\/tunnels\//,''):'').replace(' ','+')+'\t'+tun.public_url);
+      });
+    });
   } else if(args.cmd==='dump') {
-    console.log('login');
     login(args.auth);
     if(args.dumptype == 'raw') {
-      console.log('getraw');
       getraw(dumpCB);
     } else {
-      console.log('gettunnels');
       gettunnels(dumpCB);
     }
     function dumpCB(data) {
