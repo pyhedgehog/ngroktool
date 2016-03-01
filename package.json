@@ -4,6 +4,7 @@
   "description": "Get info about tunnels from either stored account of ngrok.com or from locally started ngrok.",
   "main": "ngroktool.js",
   "scripts": {
+    "ngroktool": "node ngroktool.js --npm",
     "test": "node ngroktool.js list"
   },
   "repository": {
@@ -14,7 +15,7 @@
      "webhook", "localtunnel", "tunneling", "localhost", "ngrok"
   ],
   "author": "\"Michael P. Dubner\" <pywebmail@list.ru>",
-  "license": "UnLicense",
+  "license": "Unlicense",
   "bugs": {
     "url": "https://github.com/pyhedgehog/ngroktool/issues"
   },

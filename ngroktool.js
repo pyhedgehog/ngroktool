@@ -26,87 +26,99 @@ function getParser(subHelp) {
     action: 'store',
     help: 'Auth synonym to use'
   });
+  parser.addArgument(['-P', '--npm', '--prefix'], {
+    action: 'storeTrue',
+    help: 'Use prefixed output to make it parsable when run under NPM'
+  });
   var subparsers = parser.addSubparsers({
     title:'subcommands',
     dest:"cmd"
   });
-  var authParser = subparsers.addParser('auth', {addHelp:subHelp, description:'Add or modify saved account info'});
-  authParser.addArgument(['-g', '--github'], {
+  var getSubparser = subparsers.addParser('get', {addHelp:subHelp, description:'Get saved account info'});
+  var authSubparser = subparsers.addParser('auth', {addHelp:subHelp, description:'Add or modify saved account info'});
+  authSubparser.addArgument(['-g', '--github'], {
     action: 'storeConst',
     dest: 'authtype',
     constant: 'github',
-    defaultValue: 'ngrok',
+    defaultValue: null,
     help: 'Login with GitHub user'
   });
-  authParser.addArgument(['user'], {
+  authSubparser.addArgument(['-N', '--ngrok'], {
+    action: 'storeConst',
+    dest: 'authtype',
+    constant: 'ngrok',
+    defaultValue: null,
+    help: 'Login with Ngrok user (default)'
+  });
+  authSubparser.addArgument(['user'], {
     action: 'store',
     help: 'User',
     nargs: '?'
   });
-  authParser.addArgument(['password'], {
+  authSubparser.addArgument(['password'], {
     action: 'store',
     help: 'Password',
     nargs: '?'
   });
-  var swParser = subparsers.addParser('switch', {addHelp:subHelp, description:'Switch ngrok to authtoken for selected account'});
+  var switchSubparser = subparsers.addParser('switch', {addHelp:subHelp, description:'Switch ngrok to authtoken for selected account'});
   ['tcp','http','https'].forEach(function(proto) {
-    var subParser = subparsers.addParser(proto, {addHelp:subHelp, description:'Search for '+proto+' tunnels'});
-    subParser.addArgument(['-n', '--name'], {
+    var protoSubparser = subparsers.addParser(proto, {addHelp:subHelp, description:'Search for '+proto+' tunnels'});
+    protoSubparser.addArgument(['-n', '--name'], {
       action: 'store',
       defaultValue: null,
       help: 'Connection name to search'
     });
-    subParser.addArgument(['-H', '--host', '--hostname'], {
+    protoSubparser.addArgument(['-H', '--host', '--hostname'], {
       action: 'store',
       defaultValue: null,
       help: 'Private host to search (usually 127.0.0.1)'
     });
-    subParser.addArgument(['port'], {
+    protoSubparser.addArgument(['port'], {
       action: 'store',
       help: 'Private port to search (first found if not specified)',
       defaultValue: null,
       nargs: '?'
     });
   });
-  var addParser = subparsers.addParser('add', {addHelp:subHelp, description:'Add new tunnel'});
-  addParser.addArgument(['-n', '--name'], {
+  var addSubparser = subparsers.addParser('add', {addHelp:subHelp, description:'Add new tunnel'});
+  addSubparser.addArgument(['-n', '--name'], {
     action: 'store',
     defaultValue: null,
     help: 'Connection name'
   });
-  addParser.addArgument(['-d', '--subdomain'], {
+  addSubparser.addArgument(['-d', '--subdomain'], {
     action: 'store',
     defaultValue: null,
     help: 'Connection subdomain (paid accounts only)'
   });
-  addParser.addArgument(['-H', '--hostname'], {
+  addSubparser.addArgument(['-H', '--hostname'], {
     action: 'store',
     defaultValue: null,
     help: 'Connection hostname (paid accounts only)'
   });
-  addParser.addArgument(['proto'], {
+  addSubparser.addArgument(['proto'], {
     action: 'store',
     choices: 'tcp http https'.split(' '),
     help: 'Type of new connection'
   });
-  addParser.addArgument(['port'], {
+  addSubparser.addArgument(['port'], {
     action: 'store',
     help: 'Private port to connect'
   });
-  addParser.addArgument(['-r', '--raw'], {
+  addSubparser.addArgument(['-r', '--raw'], {
     action: 'storeTrue',
     defaultValue: false,
     help: 'Dump raw response'
   });
-  addParser.addArgument(['-f', '--force'], {
+  addSubparser.addArgument(['-f', '--force'], {
     action: 'storeTrue',
     defaultValue: false,
     help: "Don't check tunnel existence"
   });
-  var listParser = subparsers.addParser('list', {addHelp:subHelp, description:'Lists all tunnels in columns format'});
-  var helpParser = subparsers.addParser('help', {addHelp:subHelp, description:'Show help for all subcommands', help:argparse.SUPPRESS});
-  var dumpParser = subparsers.addParser('dump', {addHelp:subHelp, description:'Dump all tunnels in JSON format'});
-  dumpParser.addArgument(['-r', '--raw'], {
+  var listSubparser = subparsers.addParser('list', {addHelp:subHelp, description:'Lists all tunnels in columns format'});
+  var helpSubparser = subparsers.addParser('help', {addHelp:subHelp, description:'Show help for all subcommands', help:argparse.SUPPRESS});
+  var dumpSubparser = subparsers.addParser('dump', {addHelp:subHelp, description:'Dump all tunnels in JSON format'});
+  dumpSubparser.addArgument(['-r', '--raw'], {
     action: 'storeConst',
     dest: 'dumptype',
     constant: 'raw',
@@ -145,9 +157,16 @@ function main() {
     ngrokcfg.setconfigpath(args.config);
   }
   delete args.config;
+  var printParsable = console.log;
+  if(args.npm) {
+    printParsable = function(output) {
+      console.log("__NGROKTOOL__:"+output);
+    }
+  }
+  delete args.npm;
 
   if(args.cmd==='auth') {
-    console.log(args);
+    //console.log(args);
     ngrokcfg.setauth({name:args.auth, login:args.user, password:args.password, type:args.authtype}, function(auth, cb) {
       ngrokauth.getraw(auth, function(data) {
         console.log('check-getraw =', data);
@@ -158,6 +177,17 @@ function main() {
         });
       });
     });
+  } else if(args.cmd==='get') {
+    if(!args.auth) {
+      ngrokcfg.enumauth(function(auth,i) {
+        debuglog('auth'+i+' =', auth);
+        printParsable(auth.name+':'+auth.type+':'+auth.login);
+      });
+    } else {
+      auth = ngrokcfg.getauth(args.auth)
+      debuglog('auth =', auth);
+      printParsable(auth.type+':'+auth.login);
+    }
   } else if(args.cmd==='switch') {
     login(args.auth);
     getraw(function(data) {
@@ -210,9 +240,9 @@ function main() {
         debuglog("Found: "+JSON.stringify(tunnels,null,2));
         resolvetunnels(tunnels, function(tun) {
           if(tun.proto === 'tcp') {
-            console.log(tun.public_addr);
+            printParsable(tun.public_addr);
           } else {
-            console.log(tun.public_url);
+            printParsable(tun.public_url);
           }
         });
       } else {
@@ -251,6 +281,15 @@ function login(auth) {
   debuglog('currentAuth =', currentAuth);
   if(auth) api = ngrokauth;
   else api = ngroklocal;
+}
+
+function listauthnames() {
+  var res = [];
+  ngrokcfg.enumauth(function(auth,i,arr) {
+    res.push(auth.name);
+    return true;
+  });
+  return res;
 }
 
 function getraw(cb, fb) {
@@ -311,6 +350,7 @@ exports.resolvetunnels = resolvetunnels;
 exports.addtunnel = addtunnel;
 exports.setconfigpath = ngrokcfg.setconfigpath;
 exports.setauth = ngrokcfg.setauth;
+exports.listauthnames = listauthnames;
 
 if(require.main === module)
   main();
