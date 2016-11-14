@@ -5,6 +5,7 @@ var debuglog = ngroksupport.debuglog('ngroktool');
 var ngroklocal = require('./lib/ngroklocal');
 var ngrokauth = require('./lib/ngrokauth');
 var ngrokcfg = require('./lib/ngrokcfg');
+var ngrokstore = require('./lib/ngrokstore');
 var argparse = require('argparse');
 var info = require('./package.json');
 var util = require('util');
@@ -42,6 +43,13 @@ function getParser(subHelp) {
     constant: 'github',
     defaultValue: null,
     help: 'Login with GitHub user'
+  });
+  authSubparser.addArgument(['-G', '--google'], {
+    action: 'storeConst',
+    dest: 'authtype',
+    constant: 'google',
+    defaultValue: null,
+    help: 'Login with Google user (not yet implemented)' //FIXME
   });
   authSubparser.addArgument(['-N', '--ngrok'], {
     action: 'storeConst',
@@ -125,6 +133,16 @@ function getParser(subHelp) {
     defaultValue: 'tunnels',
     help: 'Dump all info'
   });
+  var storeGetSubparser = subparsers.addParser('store-get', {addHelp:subHelp, description:'Read current tunnels from hook.io ngrokstore service'});
+  var storeSubparser = subparsers.addParser('store', {addHelp:subHelp, description:'Store current tunnels to hook.io ngrokstore service'});
+  var storeDaemonSubparser = subparsers.addParser('store-daemon', {addHelp:subHelp, description:'Run a daemon that will keep up to date tunnels to hook.io ngrokstore service'});
+  storeDaemonSubparser.addArgument(['-d', '--dots'], {
+    action: 'storeTrue',
+    dest: 'drawdots',
+    constant: 'raw',
+    defaultValue: false,
+    help: 'Draw dots on update of data'
+  });
   return parser;
 }
 
@@ -132,6 +150,30 @@ function showtunnel(tun) {
   if(!tun.public_url&&!tun.public_uri&&!public_addr)
     return console.log(tun);
   console.log(tun.proto+'\t'+tun.private_host+(tun.private_port?':'+tun.private_port:'')+'\t'+decodeURIComponent(tun.uri?tun.uri.replace(/^\/api\/tunnels\//,''):'').replace(' ','+')+'\t'+tun.public_url);
+}
+
+function gettunnels4daemon(cb) {
+  ngroklocal.gettunnels(null, function(tunnels) {
+    cb(tunnels);
+  }, function(err) {
+    console.log('gettunnel error:', err);
+    cb(null);
+  });
+}
+
+function ngrokstore_update(auth,compare,cb,fb) {
+  cb = cb || function() {};
+  fb = fb || function(err) { console.log('ngrokstore update error:', err); };
+  gettunnels4daemon(function(tunnels) {
+    if(tunnels != compare) {
+      ngrokstore.update(auth, JSON.stringify(tunnels), function(data) {
+        if(data == "OK") {
+          return cb(tunnels);
+        }
+        fb(data);
+      }, fb);
+    }
+  });
 }
 
 function main() {
@@ -175,6 +217,45 @@ function main() {
           login(auth);
           console.log('setauth =', auth);
         });
+      });
+    });
+  } else if(args.cmd==='store-get') {
+    if(!args.auth) {
+      auth = ngrokcfg.gettokenauth();
+    } else {
+      auth = ngrokcfg.getauth(args.auth)
+    }
+    ngrokstore.read(auth, function(tunnels) {
+      printParsable(tunnels);
+    });
+  } else if(args.cmd==='store') {
+    if(!args.auth) {
+      auth = ngrokcfg.gettokenauth();
+    } else {
+      auth = ngrokcfg.getauth(args.auth)
+    }
+    ngrokstore.addif(auth,function() {
+      ngrokstore_update(auth,{},function(tunnels) {
+        printParsable(/*JSON.stringify*/(tunnels));
+      });
+    });
+  } else if(args.cmd==='store-daemon') {
+    if(!args.auth) {
+      auth = ngrokcfg.gettokenauth();
+    } else {
+      auth = ngrokcfg.getauth(args.auth)
+    }
+    ngrokstore.addif(auth,function(data) {
+      var store = data;
+      ngrokstore_update(auth,null,function(tunnels) {
+        store = tunnels;
+        if(args.drawdots) process.stdout.write('.');
+        setInterval(function() {
+          ngrokstore_update(auth,tunnels,function(tunnels) {
+            if(args.drawdots) process.stdout.write('.');
+            store = tunnels;
+          });
+        },60000);
       });
     });
   } else if(args.cmd==='get') {

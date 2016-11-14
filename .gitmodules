@@ -1,0 +1,3 @@
+[submodule "hookio.ngrokstore.gist"]
+	path = hookio.ngrokstore.gist
+	url = git@gist.github.com:b12ee6f356b692b2d2fe558727010962.git
