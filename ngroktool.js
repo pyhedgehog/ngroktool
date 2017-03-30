@@ -164,14 +164,19 @@ function gettunnels4daemon(cb) {
 function ngrokstore_update(auth,compare,cb,fb) {
   cb = cb || function() {};
   fb = fb || function(err) { console.log('ngrokstore update error:', err); };
+  compare = JSON.stringify(compare);
   gettunnels4daemon(function(tunnels) {
-    if(tunnels != compare) {
-      ngrokstore.update(auth, JSON.stringify(tunnels), function(data) {
+    var stunnels = JSON.stringify(tunnels);
+    if(stunnels != compare) {
+      debuglog(stunnels+" != "+compare);
+      ngrokstore.update(auth, stunnels, function(data) {
         if(data == "OK") {
           return cb(tunnels);
         }
         fb(data);
       }, fb);
+    } else {
+      debuglog("== "+compare);
     }
   });
 }
